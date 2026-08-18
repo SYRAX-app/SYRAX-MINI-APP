@@ -283,8 +283,9 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
   const isCoinflip = item.id === "coinflip";
   const isDice = item.id === "dice";
   const isFlight = item.id === "aviator" || item.id === "lucky-jet" || item.id === "rocket-queen";
-  const hasTimer = !isMines;
-  const timerSeconds = isFlight ? FLIGHT_SECONDS : SIGNAL_SECONDS;
+  // Flight o'yinlarda 3s timer yo'q — signal darhol, "Yangi signal" bilan qayta
+  const hasTimer = !isMines && !isFlight;
+  const timerSeconds = SIGNAL_SECONDS;
 
   // Restore remaining time from store if still valid
   const restoreFromStore = () => {
@@ -316,9 +317,10 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
 
   useEffect(() => {
     if (!entering) return;
-    const t = setTimeout(() => setEntering(false), 1600);
+    const ms = item.id === "lucky-jet" ? 2000 : 1600;
+    const t = setTimeout(() => setEntering(false), ms);
     return () => clearTimeout(t);
-  }, [entering]);
+  }, [entering, item.id]);
 
   // Persist remaining seconds while active
   useEffect(() => {
@@ -369,13 +371,13 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
     // If timer still running, don't generate new signal
     if (started && hasTimer && seconds > 0) return;
 
-    // Flight: zagruzka yo'q, darhol signal, timer raqamsiz 3s
+    // Flight: timer yo'q — darhol signal, qayta "Yangi signal"
     if (isFlight) {
       const res = generateRngResult(item.id);
       setResult(res);
-      setSeconds(FLIGHT_SECONDS);
+      setSeconds(0);
       setStarted(true);
-      if (saveSignal) saveSignal(item.id, { result: res, secondsLeft: FLIGHT_SECONDS });
+      if (saveSignal) saveSignal(item.id, { result: res, secondsLeft: 0 });
       return;
     }
 
@@ -488,7 +490,7 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
   };
 
   const progressPct = Math.max(0, Math.min(100, (seconds / (isFlight ? FLIGHT_SECONDS : SIGNAL_SECONDS)) * 100));
-  const finished = started && hasTimer && seconds <= 0;
+  const finished = isFlight ? !!started : (started && hasTimer && seconds <= 0);
 
   const phaseLabels = t.getSignal === "ПОЛУЧИТЬ СИГНАЛ"
     ? ["Инициализация", "Подключение", "Анализ", "Результат"]
@@ -792,20 +794,49 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: isMines ? "#070b14" : (item.id === "rocket-queen" || item.id === "aviator" || item.id === "lucky-jet") ? "transparent" : "#050505", color: "#fff", zIndex: 60, overflowY: "auto" }}>
       {syncOverlay}
-      {entering && (
+      {entering && item.id === "lucky-jet" && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 100,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          background: "linear-gradient(160deg, #0a0a1a 0%, #1a0a2e 50%, #0d1b2a 100%)",
+          gap: 24,
+        }}>
+          <img
+            src={LUCKY_CHAR}
+            alt=""
+            style={{
+              width: 180, height: "auto", objectFit: "contain", background: "transparent",
+              filter: "drop-shadow(0 0 24px rgba(177,44,243,0.7))",
+            }}
+          />
+          <div style={{
+            width: 42, height: 42,
+            border: "3px solid #B12CF3",
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            animation: "meshRotate 0.9s linear infinite",
+          }} />
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#B12CF3", opacity: 0.9 }}>Yuklanmoqda...</div>
+          <img
+            src={LUCKY_JET_LOGO}
+            alt="Lucky Jet"
+            style={{ height: 26, width: "auto", maxWidth: 200, objectFit: "contain", marginTop: 8 }}
+          />
+        </div>
+      )}
+      {entering && item.id !== "lucky-jet" && (
         <div style={{
           position: "absolute", inset: 0, zIndex: 100,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           background: item.id === "rocket-queen"
             ? "linear-gradient(180deg, #7b2ff7 0%, #ff6b9d 50%, #ff8c42 100%)"
-            : item.id === "aviator" ? "#050505"
-            : "linear-gradient(160deg, #0a0a1a 0%, #1a0a2e 50%, #0d1b2a 100%)",
+            : "#050505",
         }}>
           <img
-            src={item.id === "lucky-jet" ? LUCKY_CHAR : item.id === "aviator" ? AVIATOR_PLANE : RQ_POSTER}
+            src={item.id === "aviator" ? AVIATOR_PLANE : RQ_POSTER}
             alt=""
             style={{
-              width: item.id === "rocket-queen" ? 220 : item.id === "aviator" ? 160 : 180,
+              width: item.id === "rocket-queen" ? 220 : 160,
               height: "auto",
               maxHeight: item.id === "rocket-queen" ? "55vh" : "auto",
               objectFit: "contain",
@@ -813,17 +844,15 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
               animation: "pulse 1.2s ease-in-out infinite",
               filter: item.id === "aviator"
                 ? "drop-shadow(0 0 24px rgba(220,30,30,0.8))"
-                : item.id === "lucky-jet"
-                ? "drop-shadow(0 0 24px rgba(34,211,238,0.7))"
                 : "drop-shadow(0 0 28px rgba(255,120,200,0.65))",
               marginBottom: 20,
               borderRadius: item.id === "rocket-queen" ? 16 : 0,
             }}
           />
-          {item.id !== "rocket-queen" && (
+          {item.id === "aviator" && (
           <div style={{
             fontSize: 22, fontWeight: 900, letterSpacing: 1,
-            color: item.id === "aviator" ? "#e11" : item.id === "lucky-jet" ? "#22d3ee" : "#fff",
+            color: "#e11",
             textShadow: "0 2px 8px rgba(0,0,0,0.4)",
           }}>{item.name}</div>
           )}
@@ -833,7 +862,7 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
           }}>
             <div style={{
               width: "100%", height: "100%",
-              background: item.id === "aviator" ? "#e11" : item.id === "lucky-jet" ? "#22d3ee" : "#e879f9",
+              background: item.id === "aviator" ? "#e11" : "#e879f9",
               animation: "loadingBar 1.5s ease-in-out forwards",
             }} />
           </div>
@@ -1153,10 +1182,12 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
               {started && (
                 <>
                   <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 16, fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.5)", marginBottom: 8, opacity: isFlight ? 0 : 1, height: isFlight ? 0 : "auto", overflow: "hidden" }}>{isFlight ? "" : `${seconds} ${t.seconds}`}</span>
-                  {started && hasTimer && seconds > 0 && (
+                  {!isFlight && (
+                  {hasTimer && seconds > 0 && (
                   <div style={{ marginBottom: 20, width: "100%", maxWidth: 260, height: 6, borderRadius: 999, background: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
-                    <div style={{ width: `${progressPct}%`, height: "100%", background: accent, transition: "width 0.25s linear", boxShadow: `0 0 10px ${accent}` }} />
+                    <div style={{ width: `${progressPct}%`, height: "100%", background: accent, transition: "width 1s linear", boxShadow: `0 0 10px ${accent}` }} />
                   </div>
+                  )}
                   )}
                 </>
               )}
@@ -1205,7 +1236,7 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
                     </span>}
               </button>
 
-              {/* Game name / logo under button */}
+              {/* Game name under button */}
               <div style={{
                 fontSize: 26, fontWeight: 900, marginBottom: 12, marginTop: 4,
                 color: item.id === "rocket-queen" ? "#fff" :
@@ -1215,7 +1246,6 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
                   ? "0 0 20px rgba(255,180,50,0.6), 0 2px 6px rgba(0,0,0,0.4)"
                   : "0 0 12px rgba(0,0,0,0.5)",
                 letterSpacing: 0.5,
-                display: "flex", justifyContent: "center", alignItems: "center",
               }}>
                 {item.id === "rocket-queen" ? (
                   <span>Rocket <span style={{ color: "#ffd166" }}>queen</span></span>
@@ -1226,10 +1256,18 @@ function SignalScreen({ item, onBack, t, stored, saveSignal, clearSignal }) {
 
               {finished && (
                 <button onClick={handleGetSignal} style={{
-                  width: "100%", maxWidth: 300, background: accent, color: "#000",
-                  borderRadius: 14, padding: "16px 0", fontSize: 15, fontWeight: 900, border: "none", cursor: "pointer",
+                  width: isFlight ? "auto" : "100%",
+                  maxWidth: isFlight ? 200 : 300,
+                  background: isFlight ? "rgba(255,255,255,0.1)" : accent,
+                  color: isFlight ? "#fff" : "#000",
+                  borderRadius: isFlight ? 999 : 14,
+                  padding: isFlight ? "10px 22px" : "16px 0",
+                  fontSize: isFlight ? 13 : 15,
+                  fontWeight: isFlight ? 700 : 900,
+                  border: isFlight ? "1px solid rgba(255,255,255,0.25)" : "none",
+                  cursor: "pointer",
                   marginTop: 8,
-                }}>{t.tryAgain}</button>
+                }}>{isFlight ? "Yangi signal" : t.tryAgain}</button>
               )}
             </div>
           </>
